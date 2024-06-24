@@ -30,7 +30,7 @@ while IFS= read -r URL; do
 done < "$URL_FILE"
 
 # Move unzipped files to the repository
-mv -r "$TEMP_DIR"/* "$REPO_PATH"
+mv -f "$TEMP_DIR"/* "$REPO_PATH"
 
 # Change to repository directory
 cd "$REPO_PATH" || exit
