@@ -1,54 +1,32 @@
 #!/bin/bash
 
-# Set repository path
-REPO_PATH=$1
-URL_FILE="dod_certs.txt"
+# Directory where zip files will be downloaded and extracted
+download_directory="downloads"
+mkdir -p "$download_directory"
+cd "$download_directory"
 
+# File containing URLs to download
+url_file="dod_certs.txt"
 
-# Create a temporary directory for downloads
-TEMP_DIR=$(mktemp -d)
+# Read each line in the file as a URL
+while IFS= read -r url
+do
+    echo "Downloading and extracting from $url"
+    # Use basename to derive a filename from the URL
+    file_name=$(basename "$url")
 
-# Function to clean up temporary directory
-cleanup() {
-    rm -rf "$TEMP_DIR"
-}
-trap cleanup EXIT
+    # Download the file
+    curl -O "$url"
 
-# Read URLs from the text file
-if [ ! -f "$URL_FILE" ]; then
-    echo "URL file not found!"
-    exit 1
-fi
+    # Unzip the file
+    unzip "$file_name"
+done < "../$url_file"
 
-# Download and unzip files
-while IFS= read -r URL; do
-    if [[ -n "$URL" ]]; then
-        FILENAME=$(basename "$URL")
-        (cd "$TEMP_DIR" && curl -LO "$URL")
-        
-        # Check if the file is a zip file before attempting to unzip
-        if file "$TEMP_DIR/$FILENAME" | grep -q 'Zip archive data'; then
-            unzip -q "$TEMP_DIR/$FILENAME" -d "$TEMP_DIR"
-        else
-            echo "Downloaded file $FILENAME is not a zip archive."
-        fi
-    fi
-done < "$URL_FILE"
+# Move to the repository root
+cd ..
 
-# Move unzipped files to the repository
-mv "$TEMP_DIR"/* "$REPO_PATH"
+# Git commands to add, commit, and push changes
+git add .
+git commit -m "Updated certificates and scripts"
 
-# Change to repository directory
-cd "$REPO_PATH" || exit
-
-# Check if there are changes to commit
-if [ -n "$(git status --porcelain)" ]; then
-    # Stage all changes
-    git add .
-
-    # Commit the changes
-    git commit -m "Downloaded and unzipped files from URLs in dod_certs.txt and updated repository"
-
-else
-    echo "No changes to commit"
-fi
+echo "All tasks completed."
