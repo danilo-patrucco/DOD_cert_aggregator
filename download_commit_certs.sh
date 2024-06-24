@@ -43,7 +43,6 @@ if [ -n "$(git status --porcelain)" ]; then
     git commit -m "Downloaded and unzipped files from URLs in dod_certs.txt and updated repository"
 
     # Push the changes (optional, requires remote repository configuration)
-    git push
 else
     echo "No changes to commit"
 fi
