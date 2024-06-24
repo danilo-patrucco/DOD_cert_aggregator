@@ -4,6 +4,7 @@
 REPO_PATH=$1
 URL_FILE="dod_certs.txt"
 
+
 # Create a temporary directory for downloads
 TEMP_DIR=$(mktemp -d)
 
@@ -21,16 +22,21 @@ fi
 
 # Download and unzip files
 while IFS= read -r URL; do
-    echo $IFS
     if [[ -n "$URL" ]]; then
         FILENAME=$(basename "$URL")
         (cd "$TEMP_DIR" && curl -LO "$URL")
-        unzip -q "$TEMP_DIR/$FILENAME" -d "$TEMP_DIR"
+        
+        # Check if the file is a zip file before attempting to unzip
+        if file "$TEMP_DIR/$FILENAME" | grep -q 'Zip archive data'; then
+            unzip -q "$TEMP_DIR/$FILENAME" -d "$TEMP_DIR"
+        else
+            echo "Downloaded file $FILENAME is not a zip archive."
+        fi
     fi
 done < "$URL_FILE"
 
 # Move unzipped files to the repository
-mv -f "$TEMP_DIR"/* "$REPO_PATH"
+mv "$TEMP_DIR"/* "$REPO_PATH"
 
 # Change to repository directory
 cd "$REPO_PATH" || exit
@@ -43,7 +49,6 @@ if [ -n "$(git status --porcelain)" ]; then
     # Commit the changes
     git commit -m "Downloaded and unzipped files from URLs in dod_certs.txt and updated repository"
 
-    # Push the changes (optional, requires remote repository configuration)
 else
     echo "No changes to commit"
 fi
