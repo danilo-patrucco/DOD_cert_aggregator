@@ -21,6 +21,7 @@ fi
 
 # Download and unzip files
 while IFS= read -r URL; do
+    echo $IFS
     if [[ -n "$URL" ]]; then
         FILENAME=$(basename "$URL")
         (cd "$TEMP_DIR" && curl -LO "$URL")
