@@ -8,12 +8,18 @@ cd "$download_directory"
 # File containing URLs to download
 url_file="../dod_certs.txt"  # Adjust this path to the actual location of your URL file
 
-# Read each line in the file as a URL
-while read -r url
+# Read the entire file and split by newlines
+mapfile -t urls < "$url_file"
+
+# Process each URL
+for url in "${urls[@]}"
 do
+    # Trim whitespace and skip empty lines
+    url=$(echo "$url" | xargs)
     if [[ -z "$url" ]]; then
-        continue  # Skip empty lines
+        continue
     fi
+
     echo "Processing $url"
     # Use basename to derive a filename from the URL
     file_name=$(basename "$url")
@@ -33,7 +39,7 @@ do
         echo "Failed to unzip $file_name. Skipping."
         continue
     fi
-done < "$url_file"
+done
 
 # Move to the repository root
 cd ..
