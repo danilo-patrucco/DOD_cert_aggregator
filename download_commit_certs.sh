@@ -23,7 +23,7 @@ fi
 while IFS= read -r URL; do
     if [[ -n "$URL" ]]; then
         FILENAME=$(basename "$URL")
-        wget -q "$URL" -P "$TEMP_DIR"
+        (cd "$TEMP_DIR" && curl -LO "$URL")
         unzip -q "$TEMP_DIR/$FILENAME" -d "$TEMP_DIR"
     fi
 done < "$URL_FILE"
