@@ -1,0 +1,2 @@
+https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/certificates_pkcs7_wcf.zip
+https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/unclass-certificates_pkcs7_DoD.zip
