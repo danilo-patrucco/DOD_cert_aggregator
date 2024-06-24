@@ -9,7 +9,7 @@ cd "$download_directory"
 url_file="../dod_certs.txt"  # Adjust this path to the actual location of your URL file
 
 # Read each line in the file as a URL
-while IFS= read -r url
+while read -r url
 do
     if [[ -z "$url" ]]; then
         continue  # Skip empty lines
