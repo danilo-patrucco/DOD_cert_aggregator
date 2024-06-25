@@ -4,11 +4,12 @@ import zipfile
 import requests
 
 # Directory setup
+repo_root_path = os.getcwd()
 download_dir = './downloads'
 os.makedirs(download_dir, exist_ok=True)
 
 # Read URLs from the dod_cert.txt file
-with open('dod_cert.txt', 'r') as file:
+with open('dod_certs.txt', 'r') as file:
     urls = file.readlines()
 
 # Download the zip files
@@ -44,7 +45,6 @@ for root, dirs, files in os.walk(download_dir):
                     merged_file.write(pf.read())
 
         # Move merged pem file to the root of the repository
-        repo_root_path = '/Users/danilo.patrucco/repositories/gitlab/chart/charts/certmanager-issuer'
         subprocess.run(['cp', merged_pem_path, repo_root_path])
 
 # Commit the changes to the local repository
