@@ -38,7 +38,8 @@ for root, dirs, files in os.walk(download_dir):
 
     # Merge all pem files in the directory
     if pem_files:
-        merged_pem_path = os.path.join(root, 'merged_certs.pem')
+        identifier = root.split(os.sep)[-1].split('_')[-1]  # Extract the identifier from the directory name
+        merged_pem_path = os.path.join(root, f'merged_certs_{identifier}.pem')
         with open(merged_pem_path, 'wb') as merged_file:
             for pem_file in pem_files:
                 with open(pem_file, 'rb') as pf:
