@@ -1,1 +1,1 @@
-openssl pkcs7 -inform DER -in certificates_pkcs7_v5_13_dod_DoD_Root_CA_3_der.p7b -print_certs -outform PEM
+# Introduction 
