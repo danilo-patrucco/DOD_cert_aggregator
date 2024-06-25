@@ -5,9 +5,10 @@ import requests
 import shutil
 
 # Directory setup
-repo_root_path = os.getcwd()
+repo_root_path = os.path.join(os.getcwd(), f'certificates')
 download_dir = './downloads'
 os.makedirs(download_dir, exist_ok=True)
+os.makedirs(repo_root_path, exist_ok=True)
 
 # Read URLs from the dod_cert.txt file
 with open('dod_certs.txt', 'r') as file:
