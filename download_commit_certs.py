@@ -50,7 +50,7 @@ for root, dirs, files in os.walk(download_dir):
         subprocess.run(['cp', merged_pem_path, repo_root_path])
 
 # Remove downloads dir 
-shutil.rmtree(download_dir)
+# shutil.rmtree(download_dir)
 # Commit the changes to the local repository
 subprocess.run(['git', '-C', repo_root_path, 'add', '.'])
 subprocess.run(['git', '-C', repo_root_path, 'commit', '-m', 'Add updated PEM files'])
