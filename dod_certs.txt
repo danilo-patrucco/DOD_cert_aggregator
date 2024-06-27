@@ -1,2 +1,4 @@
 https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/certificates_pkcs7_wcf.zip
 https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/unclass-certificates_pkcs7_DoD.zip
+https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/unclass-certificates_pkcs7_ECA.zip
+https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/unclass-dod_approved_external_pkis_trust_chains.zip
