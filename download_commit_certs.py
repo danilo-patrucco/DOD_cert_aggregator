@@ -40,13 +40,17 @@ for root, dirs, files in os.walk(download_dir):
             pem_files.append(pem_path)
             # Convert p7b to pem
             subprocess.run(['openssl', 'pkcs7', '-inform', 'DER', '-in', p7b_path,
-                            '-print_certs', '-outform', 'PEM', '-out', pem_path])
+                            '-outform', 'PEM', '-out', pem_path])
         elif file.endswith('.cer'):
             cer_path = os.path.join(root, file)
             pem_path = cer_path.replace('.cer', '.pem')
-            pem_files.append(pem_path)
             # Convert cer to pem
-            subprocess.run(['openssl', 'x509', '-in', cer_path, '-out', pem_path, '-outform', 'PEM'])
+            result = subprocess.run(['openssl', 'x509', '-in', cer_path, '-out', pem_path, '-outform', 'PEM'], capture_output=True, text=True)
+            if result.returncode == 0:
+                pem_files.append(pem_path)
+            else:
+                print(f"Failed to convert {cer_path}. Error: {result.stderr}")
+
 
     # Merge all pem files in the directory
     if pem_files:
@@ -63,6 +67,16 @@ for root, dirs, files in os.walk(download_dir):
 # Remove downloads dir 
 shutil.rmtree(download_dir)
 
+# Verify PEM certificates
+for pem_file in os.listdir(repo_root_path):
+    if pem_file.endswith('.pem'):
+        pem_path = os.path.join(repo_root_path, pem_file)
+        print(f"Verifying {pem_file}:")
+        subprocess.run(['openssl', 'x509', '-in', pem_path, '-noout'])
+        if result.returncode == 0:
+            print(f"certificate {pem_path} verified successfully")
+        else:
+            print(f"certificate {pem_path} verification failed")
 # Commit the changes to the local repository
 subprocess.run(['git', '-C', repo_root_path, 'add', '.'])
 subprocess.run(['git', '-C', repo_root_path, 'commit', '-m', 'Add updated PEM files'])
