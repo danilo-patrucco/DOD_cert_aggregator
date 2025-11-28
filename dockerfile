@@ -1,3 +1,6 @@
-FROM registry1.dso.mil/ironbank/redhat/ubi/ubi9-minimal:9.4
+FROM alpine:3.20
 
-COPY certificates/* /etc/pki/ca-trust/source/anchors/
+WORKDIR /certs
+COPY certificates/ ./certificates/
+
+CMD ["sh"]
