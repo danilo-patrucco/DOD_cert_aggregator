@@ -47,6 +47,22 @@ jobs:
         run: |
           python download_commit_certs.py
 
+      - name: Validate certificates
+        run: |
+          if [ ! -d certificates ] || [ -z "$(ls -A certificates)" ]; then
+            echo "No certificates found in ./certificates"
+            exit 1
+          fi
+          for f in certificates/*; do
+            echo "Checking $f"
+            if openssl x509 -in "$f" -noout > /dev/null 2>&1; then
+              echo "  OK: parsable X.509 certificate"
+            else
+              echo "  ERROR: not a valid X.509 PEM (or wrong format)"
+              exit 1
+            fi
+          done
+
       - name: Check for changes
         id: git_diff
         run: |
