@@ -4,6 +4,7 @@ import zipfile
 import requests
 import shutil
 import logging
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -12,7 +13,31 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Helpers
+def check_case_insensitive_collisions(directory: str) -> None:
+    seen = {}
+    collisions = []
+    try:
+        entries = os.listdir(directory)
+    except FileNotFoundError:
+        return
+    for name in entries:
+        full_path = os.path.join(directory, name)
+        if not os.path.isfile(full_path):
+            continue
+        key = name.lower()
+        if key in seen and seen[key] != name:
+            collisions.append((seen[key], name))
+        else:
+            seen[key] = name
+    if collisions:
+        msg_lines = ["Case-insensitive filename collisions detected in "
+                     f"{directory}:"]
+        for a, b in collisions:
+            msg_lines.append(f"  - {a}  <->  {b}")
+        msg = "\n".join(msg_lines)
+        print(msg, file=sys.stderr)
+        raise RuntimeError(msg)
+
 def detect_p7b_format(path: str) -> str:
     """
     Very simple heuristic:
@@ -29,19 +54,15 @@ def detect_p7b_format(path: str) -> str:
 
     return 'DER'
 
-
-# Directory setup
 repo_root_path = os.path.join(os.getcwd(), 'certificates')
 download_dir = './downloads'
 os.makedirs(download_dir, exist_ok=True)
 os.makedirs(repo_root_path, exist_ok=True)
 logging.info("Directory setup completed.")
 
-# Read URLs from the dod_certs.txt file
 with open('dod_certs.txt', 'r') as file:
     urls = [u.strip() for u in file.readlines() if u.strip()]
 
-# Download the zip files
 for url in urls:
     try:
         logging.info(f"Downloading {url}")
@@ -56,7 +77,6 @@ for url in urls:
         f.write(response.content)
     logging.info(f"Downloaded {url} to {zip_path}")
 
-    # Extract the zip file
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(download_dir)
@@ -65,11 +85,9 @@ for url in urls:
         logging.error(f"Bad ZIP file {zip_path}: {e}")
         continue
 
-# Process .p7b and .cer files in the directory
 for root, dirs, files in os.walk(download_dir):
     pem_files = []
 
-    # Create a meaningful name from the path
     relative_path = root[len(download_dir):].strip(os.sep).replace(os.sep, '_')
     identifier = relative_path.split('_')[-1] if relative_path else 'root'
 
@@ -84,7 +102,7 @@ for root, dirs, files in os.walk(download_dir):
                 '-inform', inform,
                 '-in', p7b_path,
                 '-outform', 'PEM',
-                '-print_certs',          # extract actual certificates
+                '-print_certs',
                 '-out', pem_path
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -101,8 +119,6 @@ for root, dirs, files in os.walk(download_dir):
         elif file.endswith('.cer'):
             cer_path = os.path.join(root, file)
             pem_path = cer_path.replace('.cer', '.pem')
-
-            # Convert cer to pem
             cmd = [
                 'openssl', 'x509',
                 '-in', cer_path,
@@ -119,8 +135,6 @@ for root, dirs, files in os.walk(download_dir):
                     f"Failed to convert {cer_path}. "
                     f"Return code: {result.returncode}, stderr: {result.stderr}"
                 )
-
-    # Merge all pem files in the directory
     if pem_files:
         merged_pem_path = os.path.join(root, f'merged_certs_{identifier}.pem')
         with open(merged_pem_path, 'wb') as merged_file:
@@ -133,22 +147,26 @@ for root, dirs, files in os.walk(download_dir):
                     logging.error(f"Failed to merge {pem_file}: {e}")
 
         logging.info(f"Merged PEM files into {merged_pem_path}")
-
-        # Move processed files to the root of the repository
         try:
             shutil.copy(merged_pem_path, repo_root_path)
             logging.info(f"Copied {merged_pem_path} to {repo_root_path}")
         except Exception as e:
             logging.error(f"Failed to copy {merged_pem_path} to {repo_root_path}: {e}")
-
-# Remove downloads dir 
 try:
     shutil.rmtree(download_dir)
     logging.info("Download directory removed.")
 except Exception as e:
     logging.error(f"Failed to remove download directory {download_dir}: {e}")
 
-# Verify PEM certificates in repo_root_path
+# 🔍 New: case-insensitive collision check in certificates/
+try:
+    check_case_insensitive_collisions(repo_root_path)
+    logging.info("No case-insensitive filename collisions detected in certificates.")
+except RuntimeError as e:
+    logging.error(str(e))
+    sys.exit(1)
+
+# Verify each PEM is a valid X.509 cert
 for pem_file in os.listdir(repo_root_path):
     if pem_file.endswith('.pem'):
         pem_path = os.path.join(repo_root_path, pem_file)
@@ -164,22 +182,3 @@ for pem_file in os.listdir(repo_root_path):
                 f"Verification failed for certificate {pem_path}. "
                 f"Return code: {result.returncode}, stderr: {result.stderr}"
             )
-
-# Commit the changes to the local repository
-# (assumes `certificates` is already a git repo)
-add_result = subprocess.run(['git', '-C', repo_root_path, 'add', '.'], capture_output=True, text=True)
-if add_result.returncode != 0:
-    logging.error(f"'git add' failed: {add_result.stderr}")
-
-commit_result = subprocess.run(
-    ['git', '-C', repo_root_path, 'commit', '-m', 'Add updated PEM files'],
-    capture_output=True,
-    text=True
-)
-if commit_result.returncode == 0:
-    logging.info("Changes committed to the local repository.")
-else:
-    # Common case: "nothing to commit"
-    logging.warning(f"'git commit' did not succeed: {commit_result.stderr}")
-
-print("Download and processing complete. Changes committed locally (if there was anything to commit).")
