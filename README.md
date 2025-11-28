@@ -9,6 +9,7 @@ Containerized, auto-updated bundle of DoD (Department of Defense) root and inter
 - The certificates are all publicly available files that can be downloaded from Cyber.mil.
 - The idea behind this repo is to make sure that the certificates are available quickly and easily (this container can be used in a multi-stage build to plug certs easily).
 - Any additional certificate that might be deemed useful can be added with a PR.
+- This project is **not** an official DoD, DISA, or Cyber.mil project and is provided as an **unofficial convenience mirror** only.
 
 This repository:
 
@@ -18,6 +19,8 @@ This repository:
   - **Image:** `danilopatrucco1/dodcerts`
   - **Tags:** semantic version tags (`vX.Y.Z`) + `latest`
 - Uses GitHub Actions to keep both the **image** and the **Docker Hub description** up to date.
+
+The **authoritative source of truth** for these certificates is always the official DoD PKI repositories on Cyber.mil and related DoD-operated endpoints.
 
 ---
 
@@ -33,7 +36,7 @@ This repository:
 ```
 
 This image does **not** modify the system trust store or install the certificates into `/etc/ssl/certs` or similar.  
-It’s meant to be a **data image** you can pull, inspect, or copy certs from as needed.
+It’s meant to be a **data image** you can pull, inspect, or copy certs from as needed (for example, in a multi-stage build).
 
 ---
 
@@ -149,7 +152,46 @@ COPY certificates/ ./certificates/
 
 ---
 
-## License / Disclaimer
+## Legal / Policy / Disclaimer
 
-This project aggregates and redistributes publicly available DoD certificates for convenience.  
-Use at your own risk and verify certificates against official DoD sources before trusting them in production environments.
+> **Important:** Nothing in this repository or image constitutes legal advice.  
+> If you are using this project in a production, government, or contractual context,  
+> you are responsible for consulting your own legal and compliance resources.
+
+- The certificates in this project are **publicly available** artifacts retrieved from official DoD PKI endpoints (for example, Cyber.mil).  
+  This project does **not** generate or modify the underlying certificate content, other than:
+  - format conversions (e.g., PKCS#7 to PEM), and  
+  - aggregation into merged PEM files for convenience.
+
+- This repository and container are **unofficial** and are **not affiliated with, endorsed by, or sponsored by**:
+  - the U.S. Department of Defense,  
+  - DISA,  
+  - or Cyber.mil / DoD Cyber Exchange.
+
+- The **authoritative source** for these certificates is always the official DoD PKI repositories.  
+  Users of this project should:
+  - verify fingerprints and validity against the official sources, and  
+  - periodically re-validate that the certificates match current DoD PKI distributions and policies.
+
+- Use of DoD PKI certificates may be subject to the DoD X.509 Certificate Policy, DoD PKI CP/CPS documents, and other applicable regulations and policies.  
+  By using this project, **you agree** that:
+  - You are solely responsible for ensuring your use of these certificates complies with all applicable laws, regulations, policies, security requirements, and contractual obligations.
+  - You will not rely on this repository or image as an official or authoritative source of DoD PKI material.
+
+- These certificates are typically intended for environments that legitimately rely on DoD PKI (e.g., systems performing DoD-related business or interacting with DoD services).  
+  They **should not** be treated as generic public CA roots for unrelated or non-DoD use cases.
+
+- This project is provided **“as is”**, without any warranty of any kind, express or implied, including but not limited to:
+  - accuracy, completeness, or timeliness of the certificates or metadata,  
+  - fitness for a particular purpose,  
+  - or security of any system where they are deployed.
+
+- The author(s) of this project:
+  - accept **no liability** for any damage, loss, incident, or non-compliance arising from use or misuse of this repository, its artifacts, or any derived works; and  
+  - make **no representation** that using this repository or container satisfies any specific compliance framework (including but not limited to DoD, FedRAMP, NIST, or agency-specific controls).
+
+If you are unsure whether you are permitted to use these certificates, or how they may be used in your environment, consult:
+
+1. Your organization’s security/compliance team; and  
+2. The official DoD PKI documentation and Cyber.mil resources.
+
