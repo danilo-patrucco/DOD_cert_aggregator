@@ -2,7 +2,7 @@ name: Update certs, publish image, and sync Docker Hub description
 
 on:
   schedule:
-    - cron: "0 3 * * *"  # every day at 03:00 UTC
+    - cron: "0 3 * * 7"  # every day at 03:00 UTC
   workflow_dispatch:
   push:
     branches:
