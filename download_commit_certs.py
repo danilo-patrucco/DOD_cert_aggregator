@@ -5,6 +5,8 @@ import requests
 import shutil
 import logging
 import sys
+import base64
+import hashlib
 
 # Configure logging
 logging.basicConfig(
@@ -59,6 +61,7 @@ def check_case_insensitive_collisions(directory: str) -> None:
                 canonical,
             )
 
+
 def detect_p7b_format(path: str) -> str:
     try:
         with open(path, 'rb') as f:
@@ -69,14 +72,59 @@ def detect_p7b_format(path: str) -> str:
         logging.error(f"Failed to read {path} to detect format: {e}")
     return 'DER'
 
+
+def split_pem_file(path: str):
+    """
+    Yield each certificate block from a PEM file as a string.
+    """
+    if not os.path.exists(path):
+        return
+
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            block = []
+            in_cert = False
+            for line in f:
+                if 'BEGIN CERTIFICATE' in line:
+                    in_cert = True
+                    block = [line]
+                elif 'END CERTIFICATE' in line and in_cert:
+                    block.append(line)
+                    yield ''.join(block)
+                    in_cert = False
+                    block = []
+                elif in_cert:
+                    block.append(line)
+    except Exception as e:
+        logging.error(f"Failed to split PEM file {path}: {e}")
+
+
+def cert_der_sha256(pem_block: str) -> str:
+    """
+    Convert a PEM cert block to DER & return SHA256 hex digest.
+    """
+    lines = [
+        l.strip()
+        for l in pem_block.splitlines()
+        if 'BEGIN CERTIFICATE' not in l
+        and 'END CERTIFICATE' not in l
+        and l.strip()
+    ]
+    der = base64.b64decode(''.join(lines))
+    return hashlib.sha256(der).hexdigest()
+
+
 repo_root_path = os.path.join(os.getcwd(), 'certificates')
 download_dir = './downloads'
 os.makedirs(download_dir, exist_ok=True)
 os.makedirs(repo_root_path, exist_ok=True)
 logging.info("Directory setup completed.")
 
+# Read URLs from dod_certs.txt
 with open('dod_certs.txt', 'r') as file:
     urls = [u.strip() for u in file.readlines() if u.strip()]
+
+# Download and extract ZIPs
 for url in urls:
     try:
         logging.info(f"Downloading {url}")
@@ -90,6 +138,7 @@ for url in urls:
     with open(zip_path, 'wb') as f:
         f.write(response.content)
     logging.info(f"Downloaded {url} to {zip_path}")
+
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(download_dir)
@@ -97,10 +146,13 @@ for url in urls:
     except zipfile.BadZipFile as e:
         logging.error(f"Bad ZIP file {zip_path}: {e}")
         continue
+
+# Process .p7b and .cer files
 for root, dirs, files in os.walk(download_dir):
     pem_files = []
     relative_path = root[len(download_dir):].strip(os.sep).replace(os.sep, '_')
     identifier = relative_path.split('_')[-1] if relative_path else 'root'
+
     for file in files:
         if file.endswith('.p7b'):
             p7b_path = os.path.join(root, file)
@@ -144,34 +196,63 @@ for root, dirs, files in os.walk(download_dir):
                     f"Failed to convert {cer_path}. "
                     f"Return code: {result.returncode}, stderr: {result.stderr}"
                 )
+
+    # Merge PEM files with deduplication
     if pem_files:
         merged_pem_path = os.path.join(root, f'merged_certs_{identifier}.pem')
         try:
-            with open(merged_pem_path, 'wb') as merged_file:
+            seen = set()
+            unique_count = 0
+            with open(merged_pem_path, 'w', encoding='utf-8') as merged_file:
                 for pem_file in pem_files:
-                    try:
-                        with open(pem_file, 'rb') as pf:
-                            merged_file.write(pf.read())
-                        logging.info(f"Merged {pem_file} into {merged_pem_path}")
-                    except Exception as e:
-                        logging.error(f"Failed to merge {pem_file}: {e}")
-            logging.info(f"Merged PEM files into {merged_pem_path}")
+                    for cert_block in split_pem_file(pem_file):
+                        if not cert_block:
+                            continue
+                        try:
+                            fp = cert_der_sha256(cert_block)
+                        except Exception as e:
+                            logging.error(f"Failed to fingerprint cert from {pem_file}: {e}")
+                            continue
+
+                        if fp in seen:
+                            # Duplicate cert, skip
+                            continue
+                        seen.add(fp)
+                        unique_count += 1
+
+                        merged_file.write(cert_block)
+                        if not cert_block.endswith('\n'):
+                            merged_file.write('\n')
+                        merged_file.write('\n')  # separate certs
+
+                logging.info(
+                    f"Merged {len(pem_files)} PEM files into {merged_pem_path} "
+                    f"with {unique_count} unique certificates"
+                )
         except Exception as e:
             logging.error(f"Failed to create merged PEM file {merged_pem_path}: {e}")
             merged_pem_path = None
+
+        # Copy merged file to repo_root_path
         if merged_pem_path and os.path.isfile(merged_pem_path):
             try:
                 shutil.copy(merged_pem_path, repo_root_path)
                 logging.info(f"Copied {merged_pem_path} to {repo_root_path}")
             except Exception as e:
                 logging.error(f"Failed to copy {merged_pem_path} to {repo_root_path}: {e}")
+
+# Cleanup downloads
 try:
     shutil.rmtree(download_dir)
     logging.info("Download directory removed.")
 except Exception as e:
     logging.error(f"Failed to remove download directory {download_dir}: {e}")
+
+# Fix case-insensitive collisions in certificates dir
 check_case_insensitive_collisions(repo_root_path)
 logging.info("Case-insensitive filename collisions (if any) have been resolved.")
+
+# Verify PEM certificates (first cert in each file)
 for pem_file in os.listdir(repo_root_path):
     if pem_file.endswith('.pem'):
         pem_path = os.path.join(repo_root_path, pem_file)
@@ -187,4 +268,5 @@ for pem_file in os.listdir(repo_root_path):
                 f"Verification failed for certificate {pem_path}. "
                 f"Return code: {result.returncode}, stderr: {result.stderr}"
             )
+
 print("Download and processing complete. Certificates are in ./certificates")
