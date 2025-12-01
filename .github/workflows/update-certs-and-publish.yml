@@ -2,7 +2,7 @@ name: Update certs, publish image, and sync Docker Hub description
 
 on:
   schedule:
-    - cron: "0 3 * * 7"  # every day at 03:00 UTC
+    - cron: "0 3 * * 7" 
   workflow_dispatch:
   push:
     branches:
@@ -12,7 +12,7 @@ on:
       - .github/workflows/update-certs-build-publish.yml
 
 permissions:
-  contents: write  # needed to push commits and tags
+  contents: write 
 
 env:
   IMAGE_NAME: ${{ vars.IMAGE_NAME }}
