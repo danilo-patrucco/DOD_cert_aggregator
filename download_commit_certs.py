@@ -1,11 +1,12 @@
 import os
+import re
 import subprocess
 import zipfile
 import requests
 import shutil
 import logging
 import sys
-import hashlib 
+import hashlib
 
 # Configure logging
 logging.basicConfig(
@@ -68,6 +69,42 @@ def detect_p7b_format(path: str) -> str:
     except Exception as e:
         logging.error(f"Failed to read {path} to detect format: {e}")
     return 'DER'
+
+CERT_BLOCK_RE = re.compile(rb'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', re.S)
+MAX_MERGED_FILE_BYTES = 65536
+
+def split_certificates(data: bytes) -> list:
+    return CERT_BLOCK_RE.findall(data)
+
+def write_cert_chunks(certs: list, base_path: str, max_bytes: int = MAX_MERGED_FILE_BYTES) -> list:
+    chunks = []
+    current_chunk = []
+    current_size = 0
+    for cert in certs:
+        if current_chunk and current_size + len(cert) > max_bytes:
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_size = 0
+        current_chunk.append(cert)
+        current_size += len(cert)
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    if len(chunks) > 1:
+        paths = [f"{base_path}_{idx}.pem" for idx in range(1, len(chunks) + 1)]
+    else:
+        paths = [f"{base_path}.pem"]
+
+    for path, chunk in zip(paths, chunks):
+        with open(path, 'wb') as f:
+            for cert in chunk:
+                f.write(cert)
+        if len(chunk) == 1 and len(chunk[0]) > max_bytes:
+            logging.warning(
+                "Certificate written to %s (%d bytes) exceeds %d bytes on its own; cannot split further.",
+                path, len(chunk[0]), max_bytes,
+            )
+    return paths
 
 def remove_duplicate_pem_files(directory: str) -> None:
     try:
@@ -137,6 +174,7 @@ for url in urls:
         logging.error(f"Bad ZIP file {zip_path}: {e}")
         continue
 
+seen_cert_hashes = set()
 for root, dirs, files in os.walk(download_dir):
     pem_files = []
     relative_path = root[len(download_dir):].strip(os.sep).replace(os.sep, '_')
@@ -185,21 +223,44 @@ for root, dirs, files in os.walk(download_dir):
                     f"Return code: {result.returncode}, stderr: {result.stderr}"
                 )
     if pem_files:
-        merged_pem_path = os.path.join(root, f'merged_certs_{identifier}.pem')
+        merged_base_path = os.path.join(root, f'merged_certs_{identifier}')
+        unique_certs = []
+        for pem_file in pem_files:
+            try:
+                with open(pem_file, 'rb') as pf:
+                    data = pf.read()
+                for cert in split_certificates(data):
+                    cert_hash = hashlib.sha256(cert).hexdigest()
+                    if cert_hash in seen_cert_hashes:
+                        continue
+                    seen_cert_hashes.add(cert_hash)
+                    unique_certs.append(cert + b'\n')
+                logging.info(f"Collected unique certs from {pem_file} for {merged_base_path}")
+            except Exception as e:
+                logging.error(f"Failed to merge {pem_file}: {e}")
+
+        merged_paths = []
+        if unique_certs:
+            try:
+                merged_paths = write_cert_chunks(unique_certs, merged_base_path)
+                logging.info(f"Wrote {len(merged_paths)} merged PEM file(s) for {merged_base_path}")
+            except Exception as e:
+                logging.error(f"Failed to write merged PEM file(s) for {merged_base_path}: {e}")
+                merged_paths = []
+
+        stale_pattern = re.compile(
+            re.escape(f'merged_certs_{identifier}') + r'(_\d+)?\.pem$'
+        )
+        expected_names = {os.path.basename(p) for p in merged_paths}
         try:
-            with open(merged_pem_path, 'wb') as merged_file:
-                for pem_file in pem_files:
-                    try:
-                        with open(pem_file, 'rb') as pf:
-                            merged_file.write(pf.read())
-                        logging.info(f"Merged {pem_file} into {merged_pem_path}")
-                    except Exception as e:
-                        logging.error(f"Failed to merge {pem_file}: {e}")
-            logging.info(f"Merged PEM files into {merged_pem_path}")
+            for name in os.listdir(repo_root_path):
+                if stale_pattern.fullmatch(name) and name not in expected_names:
+                    os.remove(os.path.join(repo_root_path, name))
+                    logging.info(f"Removed stale merged file {name} from {repo_root_path}")
         except Exception as e:
-            logging.error(f"Failed to create merged PEM file {merged_pem_path}: {e}")
-            merged_pem_path = None
-        if merged_pem_path and os.path.isfile(merged_pem_path):
+            logging.error(f"Failed to clean stale merged files for {identifier} in {repo_root_path}: {e}")
+
+        for merged_pem_path in merged_paths:
             try:
                 shutil.copy(merged_pem_path, repo_root_path)
                 logging.info(f"Copied {merged_pem_path} to {repo_root_path}")
